@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   if (error || typeof code !== 'string' || typeof state !== 'string') return fail();
   const cookies = parseCookies(req);
   const saved = unseal(cookies.linkedin_oauth_state, config.secret);
-  if (!saved || saved.state !== state || typeof saved.verifier !== 'string') return fail();
+  if (!saved || saved.state !== state) return fail();
 
   try {
     const tokenResponse = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
@@ -28,8 +28,7 @@ export default async function handler(req, res) {
         code,
         redirect_uri: config.redirectUri,
         client_id: config.clientId,
-        client_secret: config.clientSecret,
-        code_verifier: saved.verifier
+        client_secret: config.clientSecret
       }),
       signal: AbortSignal.timeout(10000)
     });
