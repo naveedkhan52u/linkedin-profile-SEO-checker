@@ -1,4 +1,4 @@
-import { getConfig, unseal, parseCookies, cookie, methodNotAllowed } from '../../lib/linkedin-oauth.js';
+import { getConfig, unseal, seal, parseCookies, cookie, methodNotAllowed } from '../../lib/linkedin-oauth.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return methodNotAllowed(res);
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       email: typeof user.email === 'string' ? user.email : '',
       exp: Date.now() + 7 * 24 * 60 * 60 * 1000
     };
-    const session = (await import('../../lib/linkedin-oauth.js')).seal(profile, config.secret);
+    const session = seal(profile, config.secret);
     res.setHeader('Set-Cookie', [
       cookie('linkedin_oauth_state', '', { maxAge: 0 }),
       cookie('linkedin_profile', session, { maxAge: 7 * 24 * 60 * 60 })
