@@ -61,7 +61,7 @@ function App() {
       return;
     }
 
-    const normalizedUrl = enteredUrl.startsWith('http') ? enteredUrl : 'https://' + enteredUrl;
+    const normalizedUrl = /^https?:\/\//i.test(enteredUrl) ? enteredUrl : 'https://' + enteredUrl;
     setUrl(normalizedUrl);
     setRetrievalLoading(true);
     setNotice('');
@@ -70,7 +70,7 @@ function App() {
     const apiBase = import.meta.env.VITE_PROFILE_ANALYSIS_API_URL?.trim();
     if (apiBase) {
       try {
-        const endpoint = new URL(apiBase);
+        const endpoint = new URL(apiBase, window.location.origin);
         endpoint.searchParams.set('url', normalizedUrl);
         const response = await fetch(endpoint.toString(), {
           method: 'GET',
