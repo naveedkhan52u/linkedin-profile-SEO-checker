@@ -48,18 +48,57 @@ function App() {
   const [activeTab, setActiveTab] = useState('Overview');
   const [copied, setCopied] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [retrievalLoading, setRetrievalLoading] = useState(false);
   const report = useMemo(() => scoreProfile(form), [form]);
   const filledCount = [form.headline, form.about, form.experience, form.skills].filter(v => v.trim()).length;
 
-  function startAnalysis(event) {
+  async function startAnalysis(event) {
     event?.preventDefault();
     setUrlError('');
-    if (!validLinkedInUrl(url.trim())) {
+    const enteredUrl = url.trim();
+    if (!validLinkedInUrl(enteredUrl)) {
       setUrlError('Enter a valid LinkedIn profile URL, such as https://www.linkedin.com/in/your-profile/.');
       return;
     }
-    setUrl(url.startsWith('http') ? url : 'https://' + url);
-    setNotice('Your URL is saved. Automatic profile retrieval is not connected yet, so add the profile text below to continue.');
+
+    const normalizedUrl = enteredUrl.startsWith('http') ? enteredUrl : 'https://' + enteredUrl;
+    setUrl(normalizedUrl);
+    setRetrievalLoading(true);
+    setNotice('');
+
+    // This must point to your own backend, never directly to a scraping service or a secret-bearing provider API.
+    const apiBase = import.meta.env.VITE_PROFILE_ANALYSIS_API_URL?.trim();
+    if (apiBase) {
+      try {
+        const endpoint = new URL(apiBase);
+        endpoint.searchParams.set('url', normalizedUrl);
+        const response = await fetch(endpoint.toString(), {
+          method: 'GET',
+          headers: { Accept: 'application/json' }
+        });
+        if (!response.ok) throw new Error('Profile retrieval is unavailable.');
+        const payload = await response.json();
+        const profile = payload?.profile;
+        if (!profile || !['headline', 'about', 'experience', 'skills', 'education'].some(key => typeof profile[key] === 'string' && profile[key].trim())) {
+          throw new Error('The profile provider returned no usable profile text.');
+        }
+        setForm(current => ({
+          ...current,
+          headline: typeof profile.headline === 'string' ? profile.headline : '',
+          about: typeof profile.about === 'string' ? profile.about : '',
+          experience: typeof profile.experience === 'string' ? profile.experience : '',
+          skills: Array.isArray(profile.skills) ? profile.skills.join(', ') : typeof profile.skills === 'string' ? profile.skills : '',
+          education: typeof profile.education === 'string' ? profile.education : ''
+        }));
+        setNotice('Profile text was returned by the configured provider. Review the imported details and continue to the report.');
+      } catch {
+        setNotice('Automatic retrieval is unavailable for this profile right now. Paste the profile text below to continue.');
+      }
+    } else {
+      setNotice('Automatic profile retrieval is not configured yet. Paste the profile text below to continue.');
+    }
+
+    setRetrievalLoading(false);
     setScreen('fallback');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -128,7 +167,7 @@ function App() {
             <p className="hero-lede">Find keyword gaps, strengthen your headline, and get practical recommendations to make your professional profile clearer and more searchable.</p>
             <form className="url-form" onSubmit={startAnalysis}>
               <label htmlFor="profile-url">Your LinkedIn profile URL</label>
-              <div className="url-input-row"><Link2 size={19}/><input id="profile-url" value={url} onChange={e => {setUrl(e.target.value); setUrlError('');}} placeholder="https://www.linkedin.com/in/your-profile/" autoComplete="url"/><button className="btn btn-primary" type="submit">Analyze profile <ArrowRight size={17}/></button></div>
+              <div className="url-input-row"><Link2 size={19}/><input id="profile-url" value={url} onChange={e => {setUrl(e.target.value); setUrlError('');}} placeholder="https://www.linkedin.com/in/your-profile/" autoComplete="url"/><button className="btn btn-primary" type="submit" disabled={retrievalLoading}>{retrievalLoading ? 'Checking profile…' : 'Analyze profile'} <ArrowRight size={17}/></button></div>
               {urlError && <p className="form-error">{urlError}</p>}
               <div className="form-assurance"><ShieldCheck size={15}/> Start with a URL. No account required.</div>
             </form>
