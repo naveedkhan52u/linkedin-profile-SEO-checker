@@ -15,7 +15,7 @@ A URL-first LinkedIn profile SEO analysis tool with a manual-text fallback.
 
 This repository includes Vercel serverless routes for basic LinkedIn OpenID Connect sign-in:
 
-- `GET /api/linkedin/login` starts OAuth with state validation and PKCE.
+- `GET /api/linkedin/login` starts the standard server-side OAuth authorization-code flow with state validation.
 - `GET /api/linkedin/callback` exchanges the code on the server and requests the OIDC userinfo endpoint.
 - `GET /api/linkedin/session` reports whether this browser has a signed session.
 - `POST /api/linkedin/logout` clears the session cookie.
