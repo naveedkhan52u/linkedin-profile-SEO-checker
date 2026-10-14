@@ -56,6 +56,10 @@ The frontend sends a GET request with a URL-encoded `url` query parameter. A suc
 
 Each profile field is optional, but at least one usable text field is required. `skills` may be either a string or an array of strings. The endpoint should return an appropriate non-2xx response when it cannot lawfully or reliably retrieve the requested profile. The UI then falls back to manual text entry.
 
+## Import a profile PDF
+
+The manual profile form includes a browser-side PDF text importer. A user can export their own LinkedIn profile to PDF and upload it to prefill fields where standard section headings can be recognized. The importer runs in the browser using PDF.js; it does not upload the PDF to this application server. Users must review the imported text because LinkedIn PDF layouts vary, and image-only/scanned PDFs may not contain extractable text. Manual editing remains available for any missing or misplaced content. PDF imports are limited to 10 MB.
+
 ## LinkedIn access and compliance
 
 Do not implement HTML scraping, session-cookie reuse, or browser automation to extract LinkedIn profiles. LinkedIn restricts unauthorized scraping and its official Profile API is not a general endpoint for looking up any public profile from a URL. Official API access requires the relevant approval, permissions, and member authorization. For analyzing arbitrary public URLs, use only a reputable provider whose collection method, terms, and permitted use you have verified; do not assume such a provider has LinkedIn authorization just because it offers an API.
