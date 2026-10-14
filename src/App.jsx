@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { extractLinkedInProfileFromPdf } from './lib/linkedin-pdf.js';
 import {
   ArrowRight, ArrowLeft, ArrowUpRight, BadgeCheck, BarChart3, BriefcaseBusiness,
   Check, CheckCircle2, ChevronRight, CircleHelp, ClipboardCheck, Copy, Download,
@@ -51,6 +52,9 @@ function App() {
   const [retrievalLoading, setRetrievalLoading] = useState(false);
   const [linkedInProfile, setLinkedInProfile] = useState(null);
   const [authMessage, setAuthMessage] = useState('');
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [pdfError, setPdfError] = useState('');
+  const [pdfName, setPdfName] = useState('');
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -130,6 +134,44 @@ function App() {
     setRetrievalLoading(false);
     setScreen('fallback');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function importProfilePdf(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    setPdfError('');
+    if (!file) return;
+    if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+      setPdfError('Please choose a PDF file exported from your LinkedIn profile.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPdfError('This PDF is larger than 10 MB. Export a smaller profile PDF and try again.');
+      return;
+    }
+    setPdfLoading(true);
+    setPdfName(file.name);
+    try {
+      const imported = await extractLinkedInProfileFromPdf(file);
+      const fields = imported.fields;
+      const anyFields = Object.values(fields).some(value => value.trim());
+      if (!anyFields) throw new Error('No readable text was found. If the PDF is scanned as an image, paste the text manually instead.');
+      setForm(current => ({
+        ...current,
+        headline: fields.headline.slice(0, 220) || current.headline,
+        about: fields.about.slice(0, 2000) || current.about,
+        experience: fields.experience.slice(0, 3000) || current.experience,
+        skills: fields.skills.slice(0, 800) || current.skills,
+        education: fields.education.slice(0, 500) || current.education
+      }));
+      setNotice(imported.detectedSections.length
+        ? 'PDF text imported. Review each field for accuracy and move any misplaced text before generating your report.'
+        : 'PDF text was extracted, but section headings could not be identified reliably. Review the imported About field and move text into the correct fields.');
+    } catch (error) {
+      setPdfError(error instanceof Error ? error.message : 'Could not read this PDF. Please paste the profile text manually.');
+    } finally {
+      setPdfLoading(false);
+    }
   }
 
   function updateField(key, value) { setForm(current => ({ ...current, [key]: value })); }
@@ -230,6 +272,16 @@ function App() {
         <div className="fallback-layout"><aside className="fallback-aside"><div className="illustration-icon"><ClipboardCheck size={42}/><span><PlusIcon/></span></div><h2>Profile text needed</h2><p>We can't retrieve profile details automatically in this version. This may happen because of privacy settings or platform access limits.</p><div className="notice-card"><CircleHelp size={19}/><div><b>No problem.</b><p>Paste the information from your LinkedIn profile below. We'll use the text you provide to create a preliminary SEO review.</p></div></div><h3>Helpful sections to include</h3><ul className="check-list">{['Headline / current title','About section','Work experience','Skills','Education (optional)'].map(x=><li key={x}><CheckCircle2 size={16}/>{x}</li>)}</ul><button className="text-button" onClick={() => {setScreen('home');setNotice('');}}><ArrowLeft size={16}/> Back to URL</button></aside>
           <form className="profile-form" onSubmit={runReport}><div className="form-title"><span className="eyebrow">STEP 2 OF 4</span><h1>Add your profile information</h1><p>Copy and paste the text from your LinkedIn profile. The more you provide, the more complete the review can be.</p></div>
             {notice && <div className="inline-notice"><CircleHelp size={17}/>{notice}</div>}
+            <section className="pdf-import-card" aria-label="Import profile PDF">
+              <div className="pdf-import-copy"><span className="pdf-import-icon"><FileText size={21}/></span><div><b>Import your LinkedIn profile PDF</b><p>Export your own profile as a PDF from LinkedIn, then upload it here. Text is extracted in your browser and is not uploaded to our server.</p></div></div>
+              <label className={'btn btn-soft pdf-upload-button' + (pdfLoading ? ' is-loading' : '')}>
+                {pdfLoading ? 'Reading PDF…' : 'Choose PDF file'}
+                <input type="file" accept="application/pdf,.pdf" onChange={importProfilePdf} disabled={pdfLoading} />
+              </label>
+              {pdfName && <div className="pdf-file-name"><CheckCircle2 size={14}/>{pdfName}</div>}
+              {pdfError && <p className="pdf-import-error" role="alert">{pdfError}</p>}
+              <small className="pdf-import-footnote">PDFs containing selectable text work best. Scanned image-only PDFs may not be readable.</small>
+            </section>
             <Field icon={<UserRound/>} label="Headline / current title" count={form.headline.length} max={220}><input maxLength={220} value={form.headline} onChange={e=>updateField('headline',e.target.value)} placeholder="e.g. Software Engineer | Web Developer | SEO Specialist"/></Field>
             <Field icon={<FileText/>} label="About section" count={form.about.length} max={2000}><textarea maxLength={2000} value={form.about} onChange={e=>updateField('about',e.target.value)} placeholder="Paste your LinkedIn About section or professional summary..." rows={4}/></Field>
             <Field icon={<BriefcaseBusiness/>} label="Work experience" count={form.experience.length} max={3000}><textarea maxLength={3000} value={form.experience} onChange={e=>updateField('experience',e.target.value)} placeholder="Paste roles, responsibilities, projects, and achievements..." rows={4}/></Field>
