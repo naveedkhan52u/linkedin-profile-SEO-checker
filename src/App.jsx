@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ArrowRight, ArrowLeft, ArrowUpRight, BadgeCheck, BarChart3, BriefcaseBusiness,
   Check, CheckCircle2, ChevronRight, CircleHelp, ClipboardCheck, Copy, Download,
@@ -49,6 +49,35 @@ function App() {
   const [copied, setCopied] = useState('');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [retrievalLoading, setRetrievalLoading] = useState(false);
+  const [linkedInProfile, setLinkedInProfile] = useState(null);
+  const [authMessage, setAuthMessage] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linkedInStatus = params.get('linkedin');
+    if (linkedInStatus === 'connected') setAuthMessage('LinkedIn sign-in connected. Only the basic identity details allowed by your approved permissions are available; profile sections may still need to be pasted manually.');
+    if (linkedInStatus === 'error') setAuthMessage('LinkedIn sign-in could not be completed. Check the OAuth settings and try again.');
+    if (linkedInStatus) {
+      params.delete('linkedin');
+      const query = params.toString();
+      window.history.replaceState({}, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+    }
+    fetch('/api/linkedin/session', { headers: { Accept: 'application/json' } })
+      .then(response => response.ok ? response.json() : null)
+      .then(data => { if (data?.connected && data.profile) setLinkedInProfile(data.profile); })
+      .catch(() => {});
+  }, []);
+
+  async function disconnectLinkedIn() {
+    try {
+      const response = await fetch('/api/linkedin/logout', { method: 'POST' });
+      if (!response.ok) throw new Error('Sign out failed');
+      setLinkedInProfile(null);
+      setAuthMessage('LinkedIn has been disconnected from this browser session.');
+    } catch {
+      setAuthMessage('Could not disconnect LinkedIn. Please try again.');
+    }
+  }
   const report = useMemo(() => scoreProfile(form), [form]);
   const filledCount = [form.headline, form.about, form.experience, form.skills].filter(v => v.trim()).length;
 
@@ -155,6 +184,7 @@ function App() {
           <span><strong>LinkedIn Profile SEO Checker</strong><small>Optimize your profile. Get discovered. Grow your career.</small></span>
         </a>
         <div className="top-actions">
+          {screen !== 'results' && (linkedInProfile ? <><span className="header-link">{linkedInProfile.name || 'LinkedIn connected'}</span><button className="btn btn-soft" onClick={disconnectLinkedIn}>Disconnect</button></> : <button className="btn btn-soft" onClick={() => { window.location.href = '/api/linkedin/login'; }}><Link2 size={16}/> Connect LinkedIn</button>)}
           {screen === 'results' ? <><button className="btn btn-soft" onClick={downloadReport}><Download size={16}/> Download report</button><button className="btn btn-primary" onClick={reset}><Search size={16}/> New analysis</button></> : <a className="header-link" href="#how-it-works">How it works <ArrowUpRight size={15}/></a>}
         </div>
       </header>
@@ -165,6 +195,7 @@ function App() {
             <div className="eyebrow"><Sparkles size={15}/> FREE PROFILE SEO REVIEW</div>
             <h1>Make your LinkedIn profile <span>work harder.</span></h1>
             <p className="hero-lede">Find keyword gaps, strengthen your headline, and get practical recommendations to make your professional profile clearer and more searchable.</p>
+            {authMessage && <div className="inline-notice auth-notice" role="status">{authMessage}</div>}
             <form className="url-form" onSubmit={startAnalysis}>
               <label htmlFor="profile-url">Your LinkedIn profile URL</label>
               <div className="url-input-row"><Link2 size={19}/><input id="profile-url" value={url} onChange={e => {setUrl(e.target.value); setUrlError('');}} placeholder="https://www.linkedin.com/in/your-profile/" autoComplete="url"/><button className="btn btn-primary" type="submit" disabled={retrievalLoading}>{retrievalLoading ? 'Checking profile…' : 'Analyze profile'} <ArrowRight size={17}/></button></div>
